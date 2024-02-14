@@ -29,9 +29,8 @@ fn run_cli() {
                 let file = fs::File::open(path).unwrap();
                 let bufreader = std::io::BufReader::new(file);
                 let mut archive = ZipArchive::new(bufreader).unwrap();
-                for i in 0..archive.len() {
-                    let compressed_file = archive.by_index(i).unwrap();
-                }
+                let records_file = archive.by_name("Takeout/Location History (Timeline)/Records.json").unwrap_or_else(|e| panic!("could not extract data from Records.json: {e}"));
+                
             } else if path.extension() == Some(OsStr::new("json")) {
             } else {
                 let ext = path.extension().unwrap().to_str().unwrap();
