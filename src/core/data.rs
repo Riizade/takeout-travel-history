@@ -1,13 +1,22 @@
 // this file contains type/data definitions for internal use
 
 use std::fmt::Display;
+use std::ops::Deref;
 use std::{fmt, str::FromStr};
 
 use chrono::{DateTime, Utc};
 use clap::ValueEnum;
+use country_boundaries::{CountryBoundaries, LatLon, BOUNDARIES_ODBL_360X180};
+use lazy_static::lazy_static;
 use serde::Deserialize;
 
 use crate::{JsonRecord, JsonSource};
+
+lazy_static! {
+    // keeps country boundaries data in memory
+    static ref BOUNDARIES: CountryBoundaries = CountryBoundaries::from_reader(BOUNDARIES_ODBL_360X180)
+        .unwrap_or_else(|e| panic!("could not read boundaries: {e}"));
+}
 
 /// this is a cleaner, more usable version of the raw JSON JsonRecord type from Google Takeout (in json.rs)
 #[derive(Clone, Copy, Debug)]
@@ -104,6 +113,7 @@ impl Display for Region {
     }
 }
 
+/// represents an instance of crossing from one region into another region
 pub struct BorderCrossing {
     pub timestamp: DateTime<Utc>,
     pub new_regions: Vec<Region>,
@@ -120,5 +130,23 @@ impl Display for BorderCrossing {
             .join("\n");
         let complete_string = format!("{timestamp_str}\n    |\n{region_strings}\n    |");
         write!(f, "{complete_string}")
+    }
+}
+
+impl From<&Record> for BorderCrossing {
+    fn from(record: &Record) -> Self {
+        BorderCrossing {
+            timestamp: record.timestamp,
+            new_regions: BOUNDARIES
+                .deref()
+                .ids(
+                    LatLon::new(record.latitude, record.longitude).unwrap_or_else(|e| {
+                        panic!("could not find region code for record {record:?}: {e}")
+                    }),
+                )
+                .iter()
+                .map(|code| Region::from_code(code))
+                .collect(),
+        }
     }
 }

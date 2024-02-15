@@ -111,6 +111,7 @@ fn run_cli() {
 }
 
 fn read_records_from_file(path: &PathBuf) -> Vec<Record> {
+    // extract json string from Records.json
     let json_str = if path.extension() == Some(OsStr::new("zip")) {
         // if .zip
         // extract the data of Records.json from within the zip as a &str
@@ -166,10 +167,34 @@ fn border_crossing_to_string(
     let duration_string = match previous_crossing {
         Some(prev) => {
             let days = (crossing.timestamp - prev.timestamp).num_days();
-            format!("{days} Days")
+            format!("    | Duration: {days} Days")
         }
-        None => "Duration Unknown".to_string(),
+        None => "    | Duration Unknown".to_string(),
     };
-    let complete_string = vec![&timestamp_str, "    |", &region_strings, "    |"].join("\n");
+    let complete_string = vec![
+        &timestamp_str,
+        "    |",
+        &region_strings,
+        &duration_string,
+        "    |",
+    ]
+    .join("\n");
     complete_string
+}
+
+fn records_to_border_crossings(records: &Vec<Record>) -> Vec<BorderCrossing> {
+    // create a vector to track border crossings
+    let mut crossings: Vec<BorderCrossing> = vec![];
+    let mut maybe_prev: Option<Record> = None;
+    for record in records.iter() {
+        if let Some(prev) = maybe_prev {
+        } else {
+            // if there is no previous record, we unconditionally make a border crossing
+            crossings.push(BorderCrossing::from(record))
+        }
+
+        // update previous record
+        maybe_prev = Some(*record);
+    }
+    crossings
 }
