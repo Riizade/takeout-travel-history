@@ -94,6 +94,5 @@ Options:
 
 # TODO
 
-- add release binary
 - make order of regions consistent (implement `Ord` for `Region`)
     - order by scale then lexicographically?
