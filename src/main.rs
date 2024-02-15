@@ -2,8 +2,12 @@ use chrono::prelude::*;
 use chrono::TimeDelta;
 use chrono::TimeZone;
 use clap::{Parser, Subcommand};
+use country_boundaries::LatLon;
 use country_boundaries::{CountryBoundaries, BOUNDARIES_ODBL_360X180};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::fmt;
+use std::fmt::Display;
 use std::{ffi::OsStr, fs, io::Read, path::PathBuf, str::FromStr};
 use zip::ZipArchive;
 
@@ -71,10 +75,10 @@ fn run_cli() {
             let boundaries = CountryBoundaries::from_reader(BOUNDARIES_ODBL_360X180)
                 .unwrap_or_else(|e| panic!("could not read boundaries: {e}"));
 
-            let mut prev: Option<Record> = None;
+            let mut maybe_prev: Option<Record> = None;
             for record in records.iter() {
                 // find the time interval between this record and the previous record
-                let maybe_interval = prev.as_ref().map(|p| record.timestamp - p.timestamp);
+                let maybe_interval = maybe_prev.as_ref().map(|p| record.timestamp - p.timestamp);
 
                 // print a line if we have a gap in data >= 1 day
                 if let Some(interval) = maybe_interval {
@@ -84,10 +88,36 @@ fn run_cli() {
                     }
                 }
 
-                boundaries.
+                if let Some(prev) = maybe_prev {
+                    let ids: HashSet<&str> = boundaries
+                        .ids(LatLon::new(record.latitude, record.longitude).unwrap())
+                        .iter()
+                        .map(|s| *s)
+                        .collect();
+
+                    let prev_ids: HashSet<&str> = boundaries
+                        .ids(LatLon::new(prev.latitude, prev.longitude).unwrap())
+                        .iter()
+                        .map(|s| *s)
+                        .collect();
+
+                    let diff = &ids - &prev_ids;
+                    if diff.len() > 0 {
+                        let time_str = record.timestamp.to_rfc2822();
+                        let zones: Vec<Region> =
+                            diff.iter().map(|code| Region::from_code(code)).collect();
+                        let zones_str = zones
+                            .iter()
+                            .map(|z| format!("    {z}"))
+                            .collect::<Vec<String>>()
+                            .join("\n");
+                        println!("time: {time_str}");
+                        println!("{zones_str}");
+                    }
+                }
 
                 // update the previous record
-                prev = Some(record.to_owned());
+                maybe_prev = Some(record.to_owned());
             }
         }
         None => {}
@@ -140,5 +170,43 @@ impl Record {
         } else {
             None
         }
+    }
+}
+
+enum Region {
+    CountryCode(rust_iso3166::CountryCode),
+    Subdivision(rust_iso3166::iso3166_2::Subdivision),
+    Obsolete(rust_iso3166::iso3166_3::CountryCode3),
+    Unknown(String),
+}
+
+impl Region {
+    fn from_code(code: &str) -> Self {
+        // decode all versions
+        let opt_cc = rust_iso3166::from_alpha2(code);
+        let opt_sub = rust_iso3166::iso3166_2::from_code(code);
+        let opt_obs = rust_iso3166::iso3166_3::from_code(code);
+
+        if let Some(cc) = opt_cc {
+            Self::CountryCode(cc)
+        } else if let Some(sub) = opt_sub {
+            Self::Subdivision(sub)
+        } else if let Some(obs) = opt_obs {
+            Self::Obsolete(obs)
+        } else {
+            Self::Unknown(code.to_owned())
+        }
+    }
+}
+
+impl Display for Region {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let str = match self {
+            Region::CountryCode(c) => c.name,
+            Region::Subdivision(s) => s.name,
+            Region::Obsolete(o) => o.name,
+            Region::Unknown(u) => u,
+        };
+        write!(f, "{str}")
     }
 }
