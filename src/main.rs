@@ -23,6 +23,8 @@ enum Commands {
     List {
         #[arg(short, long)]
         path: PathBuf,
+        #[arg(short, long)]
+        filter_wifi: bool,
     },
 }
 
@@ -33,7 +35,7 @@ fn main() {
 fn run_cli() {
     let cli = Cli::parse();
     match &cli.command {
-        Some(Commands::List { path }) => {
+        Some(Commands::List { path, filter_wifi }) => {
             let json_str = if path.extension() == Some(OsStr::new("zip")) {
                 // extract the data of Records.json from within the zip as a &str
                 let file =
@@ -61,14 +63,25 @@ fn run_cli() {
                 panic!("could not handle unknown filetype, must be one of {{.zip, .json}}: {ext}");
             };
             // deserialize the document to rust struct
-            let document: JsonDocument = serde_json::from_str(&json_str)
+            let mut document: JsonDocument = serde_json::from_str(&json_str)
                 .unwrap_or_else(|e| panic!("could not deserialize json: {e}"));
+
+            // if filter_wifi is true, we filter out wifi records
+            if *filter_wifi {
+                document.locations.retain(|l| {
+                    l.source
+                        .as_ref()
+                        .is_some_and(|source| *source != Source::WIFI)
+                });
+            }
+
             // convert to workable data types
             let mut records: Vec<Record> = document
                 .locations
                 .iter()
                 .flat_map(|r| Record::from_json(r))
                 .collect();
+
             // sort records by timestamp in ascending order (should already be sorted, but just in case)
             records.sort_unstable_by_key(|r| r.timestamp);
             // get country boundaries
@@ -142,7 +155,7 @@ struct JsonRecord {
     timestamp: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, PartialEq, Eq, Hash)]
 enum Source {
     WIFI,
     UNKNOWN,
