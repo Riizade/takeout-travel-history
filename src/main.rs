@@ -1,10 +1,9 @@
 use chrono::prelude::*;
 use chrono::TimeDelta;
-use chrono::TimeZone;
 use clap::{Parser, Subcommand};
 use country_boundaries::LatLon;
 use country_boundaries::{CountryBoundaries, BOUNDARIES_ODBL_360X180};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashSet;
 use std::fmt;
 use std::fmt::Display;
