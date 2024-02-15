@@ -11,12 +11,13 @@ This program is designed to work with Google Takout data from Google Maps Timeli
 This example skips data gaps and subregion crossings, and excludes location data from unknown sources and wifi, as well as excluding location data that has no source. <br />
 `./takeout-travel-history.exe border-crossings -p "C:\Users\XXX\Downloads\takeout-20240112T184310Z-001.zip" -s -m -e wifi -e none -e unknown` <br />
 
-Here is an example of what the output might look like:
+Here is an example of what the output might look like (this would be a trip from America to Japan with a 1-stop layover in Canada via YYZ):
 ```
 ...
 Wed, 26 Jul 2023 22:30:32 +0000
     |
-    | Taiwan, Province of China
+    | Ontario
+    | Canada
     | Duration: 0 Days
     |
 Thu, 27 Jul 2023 05:09:27 +0000
@@ -26,7 +27,8 @@ Thu, 27 Jul 2023 05:09:27 +0000
     |
 Thu, 10 Aug 2023 04:39:00 +0000
     |
-    | Taiwan, Province of China
+    | Ontario
+    | Canada
     | Duration: 0 Days
     |
 Fri, 11 Aug 2023 02:48:45 +0000
@@ -93,3 +95,5 @@ Options:
 # TODO
 
 - add release binary
+- make order of regions consistent (implement `Ord` for `Region`)
+    - order by scale then lexicographically?
