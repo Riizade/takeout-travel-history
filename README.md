@@ -29,5 +29,5 @@ Then, retrieve your `.zip` file and point this tool at it using the `-p` option.
 
 # TODO
 
-- fix --ignore-subregions
 - add example help + invocation + output
+- add release binary

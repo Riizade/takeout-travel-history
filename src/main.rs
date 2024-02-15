@@ -28,7 +28,6 @@ enum Commands {
         path: PathBuf,
         #[arg(short('e'), long, required(false), value_name("SOURCE"), help("Excludes a certain data source from the results; can be specified multiple times to exclude multiple sources"))]
         exclude_source: Vec<Source>,
-        // TODO: fix
         #[arg(short('s'), long, required(false), help("BROKEN; DO NOT USE Ignores border crossings between subregions such as US states, Canadian provinces, etc"))]
         ignore_subregions: bool,
         #[arg(short('m'), long, required(false), help("Does not treat missing data as its own region and instead assumes that the region remains the same for the duration of missing data"))]
@@ -62,20 +61,19 @@ fn run_cli() {
             // convert Record to BorderCrossing
             let mut crossings = records_to_border_crossings(&records);
 
+            // optionally strip missing data border crossings
+            if *ignore_missing_data {
+                crossings.retain(|c| !c.new_regions.contains(&Region::MissingData));
+            }
+
             // optionally strip subregion crossings
             if *ignore_subregions {
                 // get the new regions and the old regions and compare the differing Regions
                 // if any of the differing Regions are NOT a subregion, then we can keep the crossing because it is not solely between subregions
                 crossings = compare_and_retain(&crossings, |c, p| {
-                    (&c.new_regions - &p.new_regions)
-                        .iter()
-                        .any(|r| !r.is_subregion())
+                    let differing_regions = &c.new_regions - &p.new_regions;
+                    differing_regions.iter().any(|r| !r.is_subregion())
                 })
-            }
-
-            // optionally strip missing data border crossings
-            if *ignore_missing_data {
-                crossings.retain(|c| !c.new_regions.contains(&Region::MissingData));
             }
 
             // strip consecutive duplicates
