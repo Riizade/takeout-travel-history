@@ -25,3 +25,9 @@ Select your export options; ensure "`.zip`" is selected as the file type
 
 Then, retrieve your `.zip` file and point this tool at it using the `-p` option. You can also extract the `Records.json` from the file and supply that path instead.
 
+
+
+# TODO
+
+- fix --ignore-subregions
+- add example help + invocation + output

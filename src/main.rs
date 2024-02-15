@@ -28,7 +28,8 @@ enum Commands {
         path: PathBuf,
         #[arg(short('e'), long, required(false), value_name("SOURCE"), help("Excludes a certain data source from the results; can be specified multiple times to exclude multiple sources"))]
         exclude_source: Vec<Source>,
-        #[arg(short('s'), long, required(false), help("Ignores border crossings between subregions such as US states, Canadian provinces, etc"))]
+        // TODO: fix
+        #[arg(short('s'), long, required(false), help("BROKEN; DO NOT USE Ignores border crossings between subregions such as US states, Canadian provinces, etc"))]
         ignore_subregions: bool,
         #[arg(short('m'), long, required(false), help("Does not treat missing data as its own region and instead assumes that the region remains the same for the duration of missing data"))]
         ignore_missing_data: bool,
