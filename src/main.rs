@@ -7,6 +7,7 @@ use chrono::TimeDelta;
 use clap::{Parser, Subcommand};
 use country_boundaries::LatLon;
 use country_boundaries::{CountryBoundaries, BOUNDARIES_ODBL_360X180};
+use std::collections::btree_map::Range;
 use std::collections::HashSet;
 use std::{ffi::OsStr, fs, io::Read, path::PathBuf};
 use zip::ZipArchive;
@@ -109,7 +110,7 @@ fn read_records_from_file(path: &PathBuf) -> Vec<Record> {
 
 fn border_crossing_to_string(
     crossing: &BorderCrossing,
-    previous_crossing: &Option<&BorderCrossing>,
+    next_crossing: &Option<&BorderCrossing>,
 ) -> String {
     let timestamp_str = crossing.timestamp.to_rfc2822();
     let region_strings: String = crossing
@@ -118,9 +119,9 @@ fn border_crossing_to_string(
         .map(|r| format!("    | {r}"))
         .collect::<Vec<String>>()
         .join("\n");
-    let duration_string = match previous_crossing {
-        Some(prev) => {
-            let days = (crossing.timestamp - prev.timestamp).num_days();
+    let duration_string = match next_crossing {
+        Some(next) => {
+            let days = (next.timestamp - crossing.timestamp).num_days();
             format!("    | Duration: {days} Days")
         }
         None => "    | Duration Unknown".to_string(),
@@ -138,12 +139,12 @@ fn border_crossing_to_string(
 
 fn display_border_crossings(crossings: &Vec<BorderCrossing>) -> String {
     let mut string: String = "".to_string();
-    let mut maybe_prev: Option<&BorderCrossing> = None;
-    for crossing in crossings.iter() {
-        string += &border_crossing_to_string(crossing, &maybe_prev);
-        // update previous
-        maybe_prev = Some(crossing);
+    for i in 0..crossings.len() {
+        let crossing = crossings.get(i).unwrap();
+        let maybe_next = crossings.get(i + 1);
+        string += &border_crossing_to_string(crossing, &maybe_next);
     }
+
     string
 }
 
@@ -160,14 +161,18 @@ fn records_to_border_crossings(records: &Vec<Record>) -> Vec<BorderCrossing> {
             if interval >= TimeDelta::days(1) {
                 // if we have a gap of more than one day, add a missing data border crossing
                 crossings.push(BorderCrossing {
-                    timestamp: record.timestamp + TimeDelta::days(1), // timestamp is +1 day from previous record
+                    timestamp: prev.timestamp + TimeDelta::days(1), // timestamp is +1 day from previous record
                     new_regions: vec![Region::MissingData].into_iter().collect(),
                 })
             }
 
-            // add crossing if we've changed locations
+            // add crossing if we've changed locations (or if the last crossing was MissingData)
             let location_diff = &record.regions() - &prev.regions();
-            if location_diff.len() > 0 {
+            if location_diff.len() > 0
+                || crossings
+                    .last()
+                    .is_some_and(|c| c.new_regions.contains(&Region::MissingData))
+            {
                 crossings.push(BorderCrossing::from(record))
             }
         } else {
