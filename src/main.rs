@@ -53,58 +53,12 @@ fn run_cli() {
         }) => {
             // read file to Vec<Record>
             let mut records: Vec<Record> = read_records_from_file(path);
-
             // sort records by timestamp in ascending order (should already be sorted, but just in case)
             records.sort_unstable_by_key(|r| r.timestamp);
-
-            // get country boundaries
-            let boundaries = CountryBoundaries::from_reader(BOUNDARIES_ODBL_360X180)
-                .unwrap_or_else(|e| panic!("could not read boundaries: {e}"));
-
-            let mut maybe_prev: Option<Record> = None;
-            for record in records.iter() {
-                // find the time interval between this record and the previous record
-                let maybe_interval = maybe_prev.as_ref().map(|p| record.timestamp - p.timestamp);
-
-                // print a line if we have a gap in data >= 1 day
-                if let Some(interval) = maybe_interval {
-                    if interval >= TimeDelta::days(1) {
-                        let gap_days = interval.num_days();
-                        println!("data gap of {gap_days} days")
-                    }
-                }
-
-                if let Some(prev) = maybe_prev {
-                    let ids: HashSet<&str> = boundaries
-                        .ids(LatLon::new(record.latitude, record.longitude).unwrap())
-                        .iter()
-                        .map(|s| *s)
-                        .collect();
-
-                    let prev_ids: HashSet<&str> = boundaries
-                        .ids(LatLon::new(prev.latitude, prev.longitude).unwrap())
-                        .iter()
-                        .map(|s| *s)
-                        .collect();
-
-                    let diff = &ids - &prev_ids;
-                    if diff.len() > 0 {
-                        let time_str = record.timestamp.to_rfc2822();
-                        let zones: Vec<Region> =
-                            diff.iter().map(|code| Region::from_code(code)).collect();
-                        let zones_str = zones
-                            .iter()
-                            .map(|z| format!("    {z}"))
-                            .collect::<Vec<String>>()
-                            .join("\n");
-                        println!("time: {time_str}");
-                        println!("{zones_str}");
-                    }
-                }
-
-                // update the previous record
-                maybe_prev = Some(record.to_owned());
-            }
+            // convert Record to BorderCrossing
+            let crossings = records_to_border_crossings(&records);
+            let s = display_border_crossings(&crossings);
+            println!("{s}");
         }
         None => {}
     }
@@ -154,8 +108,8 @@ fn read_records_from_file(path: &PathBuf) -> Vec<Record> {
 }
 
 fn border_crossing_to_string(
-    crossing: BorderCrossing,
-    previous_crossing: Option<BorderCrossing>,
+    crossing: &BorderCrossing,
+    previous_crossing: &Option<&BorderCrossing>,
 ) -> String {
     let timestamp_str = crossing.timestamp.to_rfc2822();
     let region_strings: String = crossing
@@ -176,18 +130,46 @@ fn border_crossing_to_string(
         "    |",
         &region_strings,
         &duration_string,
-        "    |",
+        "    |\n",
     ]
     .join("\n");
     complete_string
 }
 
+fn display_border_crossings(crossings: &Vec<BorderCrossing>) -> String {
+    let mut string: String = "".to_string();
+    let mut maybe_prev: Option<&BorderCrossing> = None;
+    for crossing in crossings.iter() {
+        string += &border_crossing_to_string(crossing, &maybe_prev);
+        // update previous
+        maybe_prev = Some(crossing);
+    }
+    string
+}
+
+/// requires records to be sorted by timestamp
 fn records_to_border_crossings(records: &Vec<Record>) -> Vec<BorderCrossing> {
     // create a vector to track border crossings
     let mut crossings: Vec<BorderCrossing> = vec![];
     let mut maybe_prev: Option<Record> = None;
     for record in records.iter() {
         if let Some(prev) = maybe_prev {
+            // if we have a previous record, check before adding a new crossing
+            // check if we have a data gap of more than one day
+            let interval = record.timestamp - prev.timestamp;
+            if interval >= TimeDelta::days(1) {
+                // if we have a gap of more than one day, add a missing data border crossing
+                crossings.push(BorderCrossing {
+                    timestamp: record.timestamp + TimeDelta::days(1), // timestamp is +1 day from previous record
+                    new_regions: vec![Region::MissingData].into_iter().collect(),
+                })
+            }
+
+            // add crossing if we've changed locations
+            let location_diff = &record.regions() - &prev.regions();
+            if location_diff.len() > 0 {
+                crossings.push(BorderCrossing::from(record))
+            }
         } else {
             // if there is no previous record, we unconditionally make a border crossing
             crossings.push(BorderCrossing::from(record))

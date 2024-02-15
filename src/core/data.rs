@@ -1,5 +1,6 @@
 // this file contains type/data definitions for internal use
 
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::ops::Deref;
 use std::{fmt, str::FromStr};
@@ -42,6 +43,19 @@ impl Record {
             None
         }
     }
+
+    pub fn regions(&self) -> HashSet<Region> {
+        BOUNDARIES
+            .deref()
+            .ids(
+                LatLon::new(self.latitude, self.longitude).unwrap_or_else(|e| {
+                    panic!("could not find region code for record {self:?}: {e}")
+                }),
+            )
+            .iter()
+            .map(|code| Region::from_code(code))
+            .collect()
+    }
 }
 
 /// defines the source for a location record
@@ -73,6 +87,7 @@ impl Source {
     }
 }
 
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub enum Region {
     CountryCode(rust_iso3166::CountryCode),
     Subdivision(rust_iso3166::iso3166_2::Subdivision),
@@ -116,7 +131,7 @@ impl Display for Region {
 /// represents an instance of crossing from one region into another region
 pub struct BorderCrossing {
     pub timestamp: DateTime<Utc>,
-    pub new_regions: Vec<Region>,
+    pub new_regions: HashSet<Region>,
 }
 
 impl Display for BorderCrossing {
@@ -137,16 +152,7 @@ impl From<&Record> for BorderCrossing {
     fn from(record: &Record) -> Self {
         BorderCrossing {
             timestamp: record.timestamp,
-            new_regions: BOUNDARIES
-                .deref()
-                .ids(
-                    LatLon::new(record.latitude, record.longitude).unwrap_or_else(|e| {
-                        panic!("could not find region code for record {record:?}: {e}")
-                    }),
-                )
-                .iter()
-                .map(|code| Region::from_code(code))
-                .collect(),
+            new_regions: record.regions(),
         }
     }
 }
