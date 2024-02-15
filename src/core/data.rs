@@ -113,6 +113,13 @@ impl Region {
             Self::UnknownCode(code.to_owned())
         }
     }
+
+    pub fn is_subregion(&self) -> bool {
+        match self {
+            Region::Subdivision(_) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Display for Region {
@@ -129,6 +136,7 @@ impl Display for Region {
 }
 
 /// represents an instance of crossing from one region into another region
+#[derive(Clone, Debug)]
 pub struct BorderCrossing {
     pub timestamp: DateTime<Utc>,
     pub new_regions: HashSet<Region>,

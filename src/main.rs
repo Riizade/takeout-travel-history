@@ -2,12 +2,8 @@ mod core;
 
 use crate::core::data::*;
 use crate::core::json::*;
-use chrono::prelude::*;
 use chrono::TimeDelta;
 use clap::{Parser, Subcommand};
-use country_boundaries::LatLon;
-use country_boundaries::{CountryBoundaries, BOUNDARIES_ODBL_360X180};
-use std::collections::btree_map::Range;
 use std::collections::HashSet;
 use std::{ffi::OsStr, fs, io::Read, path::PathBuf};
 use zip::ZipArchive;
@@ -54,15 +50,71 @@ fn run_cli() {
         }) => {
             // read file to Vec<Record>
             let mut records: Vec<Record> = read_records_from_file(path);
+
+            // exclude chosen source types
+            let excluded_sources: HashSet<&Source> = exclude_source.iter().collect();
+            records.retain(|r| !excluded_sources.contains(&r.source));
+
             // sort records by timestamp in ascending order (should already be sorted, but just in case)
             records.sort_unstable_by_key(|r| r.timestamp);
+
             // convert Record to BorderCrossing
-            let crossings = records_to_border_crossings(&records);
+            let mut crossings = records_to_border_crossings(&records);
+
+            // optionally strip subregion crossings
+            if *ignore_subregions {
+                // get the new regions and the old regions and compare the differing Regions
+                // if any of the differing Regions are NOT a subregion, then we can keep the crossing because it is not solely between subregions
+                crossings = compare_and_retain(&crossings, |c, p| {
+                    (&c.new_regions - &p.new_regions)
+                        .iter()
+                        .any(|r| !r.is_subregion())
+                })
+            }
+
+            // optionally strip missing data border crossings
+            if *ignore_missing_data {
+                crossings.retain(|c| !c.new_regions.contains(&Region::MissingData));
+            }
+
+            // strip consecutive duplicates
+            // now that we've potentially stripped out certain types of border crossings, we may have crossings next to each other that no longer differ
+            // consider the original data [Muffintown, Missing Data, Muffintown]; if we strip Missing Data, we're now left with [Muffintown, Muffintown] as two separate, consecutive border crossings
+            // to fix this issue, we strip consecutive duplicates from the data here
+            crossings = compare_and_retain(&crossings, |c, p| {
+                (&c.new_regions - &p.new_regions).len() > 0 // if the crossing entries' regions differ by at least one, the crossing can be retained
+            });
+
+            // display border crossing data
             let s = display_border_crossings(&crossings);
             println!("{s}");
         }
         None => {}
     }
+}
+
+/// compares each element in v to its predecessor using the given predicate
+/// predicate is (current, previous) -> bool
+/// if the predicate returns true, the element is placed in the returned Vec
+/// if the predicate returns false, the element will not be contained in the returned Vec
+/// the first element in v is always included, because there is no previous element to compare to
+fn compare_and_retain<T: Clone>(v: &Vec<T>, predicate: fn(&T, &T) -> bool) -> Vec<T> {
+    let mut new_vec: Vec<&T> = vec![];
+    for i in 0..v.len() {
+        let element = v.get(i).unwrap();
+        let previous_element = v.get(i - 1);
+        match previous_element {
+            Some(prev) => {
+                if predicate(element, prev) {
+                    new_vec.push(element)
+                }
+            }
+            // if there is no previous element, it is by default included
+            None => new_vec.push(element),
+        }
+    }
+
+    new_vec.iter().map(|&item| item.clone()).collect()
 }
 
 fn read_records_from_file(path: &PathBuf) -> Vec<Record> {
