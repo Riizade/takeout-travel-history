@@ -3,7 +3,7 @@ Reads your Google Takeout data from maps to generate a list of each time you cha
 
 # Usage
 
-This program is designed to work with Google Takout data from Google Maps Timeline.
+This program is designed to work with Google Takeout data from Google Maps Timeline.
 
 
 ## Example Invocation
