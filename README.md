@@ -14,7 +14,7 @@ This example skips data gaps and subregion crossings, and excludes location data
 Here is an example of what the output might look like (this would be a trip from America to Japan with a 1-stop layover in Canada via YYZ):
 ```
 ...
-Wed, 26 Jul 2023 22:30:32 +0000
+Wed, 26 Jul 2023 22:30:28 +0000
     |
     | Ontario
     | Canada
