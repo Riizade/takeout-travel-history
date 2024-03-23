@@ -21,9 +21,14 @@ pub struct JsonRecord {
 }
 
 #[derive(Deserialize, PartialEq, Eq, Hash, Copy, Clone)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum JsonSource {
-    WIFI,
-    UNKNOWN,
+    Wifi,
+    Unknown,
+    #[serde(rename = "GPS")]
     GPS,
-    CELL,
+    Cell,
+    VisitDeparture,
+    VisitArrival,
+    Manual,
 }
