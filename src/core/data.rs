@@ -62,27 +62,34 @@ impl Record {
 #[derive(Deserialize, PartialEq, Eq, Hash, Copy, Clone, ValueEnum, Debug)]
 pub enum Source {
     /// a wifi access point
-    WIFI,
+    Wifi,
     /// gps satellite signal
     GPS,
     /// cell tower signal
-    CELL,
+    Cell,
+    VisitArrival,
+    VisitDeparture,
     /// unknown source (as recorded in Google Takeout)
-    UNKNOWN,
+    Unknown,
+    /// as recorded in Google Takout, unsure how one manually places a location
+    Manual,
     /// no source was recorded in Google Takeout
-    NONE,
+    None,
 }
 
 impl Source {
     pub fn from_json_source(json: &Option<JsonSource>) -> Self {
         match json {
             Some(s) => match s {
-                JsonSource::CELL => Source::CELL,
-                JsonSource::UNKNOWN => Source::UNKNOWN,
+                JsonSource::Cell => Source::Cell,
+                JsonSource::Unknown => Source::Unknown,
                 JsonSource::GPS => Source::GPS,
-                JsonSource::WIFI => Source::WIFI,
+                JsonSource::Wifi => Source::Wifi,
+                JsonSource::Manual => Source::Manual,
+                JsonSource::VisitArrival => Source::VisitArrival,
+                JsonSource::VisitDeparture => Source::VisitDeparture,
             },
-            None => Source::NONE,
+            None => Source::None,
         }
     }
 }
